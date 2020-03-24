@@ -1,0 +1,35 @@
+Supervised Machine Learning - DS5220
+Group Project Abstract
+03.15.2020
+
+Akshit Jain
+Naga Santhosh Kartheek Karnati
+ Praharsha Singaraju
+Thomas Lindstrom-Vautrin
+
+EDA Ideas:
+
+--FIFA world 11 for each year
+--Highest rated player in each position
+--Highest rated player with each jersey number
+Player rating progression over the years for select clubs
+EDA on body type, work rate, player tags and player traits
+--EDA on age/salary, age/value, best 11s over and under 23yrs of age
+--EDA on wages, salary and release clause
+--Fastest player, best shooter, best passer, best dribbler, best defender and the strongest player
+--Players with the highest potential rating
+--Tall players are good at heading, short players are good at dribbling and strong people are good at tackling
+Player traits and tags
+--best player for each country (top 10 FIFA ranked countries) for each year
+--Goalkeepers with the best diving and reflexes
+
+ML Ideas:
+Classify player position based on physical attributes (height, weight, age, strength, speed, jump...).
+Classify player nationality based on “style of play” attributes like shooting, passing, dribbling, defending, pace… (Spain expected to have high numbers for passing?)
+Predict player rating
+Predict player value
+Classify prefered foot 
+Classify work rates
+
+
+
