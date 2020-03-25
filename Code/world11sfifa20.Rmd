@@ -1,0 +1,121 @@
+---
+title: "Best teams on fifa20"
+author: "Naga Santhosh Kartheek Karnati"
+date: "3/25/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(data.table)
+library(rio)
+library(modelr)
+library(purrr)
+
+
+fif20 <- fread('D:/NEU/Spring 2020/SML/Project/Datasets/players_20.csv')
+class(fif20)
+#View(fif20)
+#fifa20 as a tibble
+fif20 <- as_tibble(fifa20)
+
+```
+```{r}
+#we know the best team on fifa20 ie fifa world 11 
+#we also know the best team of players under23 or 23 on fifa20
+#Plotting them on a football pitch
+library(jpeg)
+library(png)
+img <- readPNG("D:/NEU/Spring 2020/SML/Project/footballpitch1.png")
+
+
+```
+
+
+```{r}
+formation4231 <- data.frame(team_position = as.factor(c("GK","LB","LCB","RCB","RB",
+                                                   "RCM","CDM","CAM","RW","LW","ST")),
+      X = c(5,17,12.5,12.5,17,33,33,47,53,53,60),
+      Y = c(50,83,61,38,16,30,70,50,22,78,50)
+      )
+
+fifa20_world11 <- c("J. Oblak","Jordi Alba","V. van Dijk","PiquÃ©","J. Kimmich",
+                    "K. De Bruyne","Neymar Jr","Sergio Busquets","L. Messi",
+                    "R. Lewandowski","Cristiano Ronaldo")
+
+df_fifa20_world11 <- fif20 %>% filter(short_name %in% fifa20_world11)%>%
+  select(short_name, club, team_jersey_number, team_position, overall)
+
+
+#Join formation4231 and df_fifa20_world11 by position:
+library(RSQL)
+library(dbplyr)
+data1 <- full_join(df_fifa20_world11, formation4231)
+
+#data1 <- cbind(df_fifa20_world11, formation4231 %>% select(-Position))
+```
+
+```{r}
+library(ggpubr)
+
+options(repr.plot.width = 16, repr.plot.height = 8)
+
+#ggplot(data1, aes(X, Y, label = paste0(team_jersey_number, "-", short_name)))+
+#    geom_point()+
+#  geom_text(aes(label=paste0(team_jersey_number, "-", short_name)), hjust=0, vjust=2)+
+#  background_image(img)
+
+ggplot(data1, aes(X, Y, label = paste0(team_jersey_number, "-", short_name)))+
+      background_image(img)+
+      geom_text(size = 4, angle = 9, color = "khaki", hjust=0.5, vjust=0.5)+
+      theme_void()+
+      theme(panel.background = element_rect(fill = "forestgreen"))+
+      xlim(0,70)+
+  ggsave("w11fifa20.jpeg",  
+         path="D:/NEU/Spring 2020/SML/Project/Plots/")
+
+```
+
+```{r}
+#simimlarly, world 11 aged 23 or less:
+formation23_4231 <- data.frame(team_position = as.factor(c("GK","LB","LCB","RCB","RB",
+                                                   "LCM","RDM","CAM","LW","RW","RF")),
+      X = c(5,17,12.5,12.5,17,33,33,47,53,53,60),
+      Y = c(50,83,61,38,16,30,70,50,22,78,50)
+      )
+
+fifa20_world11_23 <- c("G. Donnarumma","Grimaldo","L. HernÃ¡ndez","N. SÃ¼le",
+                       "T. Alexander-Arnold","F. de Jong","L. Torreira","D. Alli",
+                       "K. Coman","K. MbappÃ©","K. Havertz")
+
+df_fifa20_world11_23 <- fif20 %>% filter(short_name %in% fifa20_world11_23)%>%
+  select(short_name, club, team_jersey_number, team_position, overall)
+
+data2 <- full_join(df_fifa20_world11_23, formation23_4231)
+```
+```{r}
+options(repr.plot.width = 16, repr.plot.height = 8)
+
+ggplot(data2, aes(X, Y, label = paste0(team_jersey_number, "-", short_name)))+
+      background_image(img)+
+      geom_text(size = 4, angle = 9, color = "khaki", hjust=0.5, vjust=0.5)+
+      theme_void()+
+      theme(panel.background = element_rect(fill = "forestgreen"))+
+      xlim(0,70)+
+  ggsave("w11_23_fifa20.jpeg",  
+         path="D:/NEU/Spring 2020/SML/Project/Plots/")
+
+```
