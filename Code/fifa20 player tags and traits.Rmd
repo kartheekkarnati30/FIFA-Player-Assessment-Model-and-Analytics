@@ -1,0 +1,325 @@
+---
+title: "Player tags and traits"
+author: "Naga Santhosh Kartheek Karnati"
+date: "3/26/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+## Misc. EDA
+```{r}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(data.table)
+library(rio)
+library(modelr)
+library(purrr)
+
+#loading the datasets:
+#FIFA20 players dataset:
+
+fi20 <- fread('D:/NEU/Spring 2020/SML/Project/Datasets/players_20.csv')
+fi19 <- fread('D:/NEU/Spring 2020/SML/Project/Datasets/players_19.csv')
+fi18 <- fread('D:/NEU/Spring 2020/SML/Project/Datasets/players_18.csv')
+fi17 <- fread('D:/NEU/Spring 2020/SML/Project/Datasets/players_17.csv')
+fi16 <- fread('D:/NEU/Spring 2020/SML/Project/Datasets/players_16.csv')
+
+fi20 <- as_tibble(fi20)
+fi19 <- as_tibble(fi19)
+fi18 <- as_tibble(fi18)
+fi17 <- as_tibble(fi17)
+fi16 <- as_tibble(fi16)
+
+fifa_datasets_list = list(fi16, fi17, fi18, fi19, fi20)
+years = list("2016", "2017", "2018", "2019", "2020")
+
+
+```
+
+## EDA on player age, wage and value 
+```{r}
+
+for (i in seq_along(fifa_datasets_list))
+{
+  wage_plot <- fifa_datasets_list[[i]] %>% ggplot(aes(age, wage_eur))+geom_point()+
+    geom_jitter()+labs(x="player age", y="player wage in euros per week",
+                       title = "wage vs age plot")
+  print(wage_plot)
+  
+  value_plot <- fifa_datasets_list[[i]] %>% ggplot(aes(age, value_eur))+geom_point()+
+    geom_jitter()+labs(x="player age", y="player value in euros",
+                       title = "value vs age plot")
+  print(value_plot)
+  
+}
+```
+
+
+## Correlation amongst age, wage and value with age threshold 28:
+```{r}
+for (i in seq_along(fifa_datasets_list))
+{
+  players28_andless <- fifa_datasets_list[[i]] %>% 
+    filter(age <= 28)%>% select(age, wage_eur, value_eur)
+  players_over28 <- fifa_datasets_list[[i]] %>% 
+    filter(age > 28)%>% select(age, wage_eur, value_eur)
+  
+  cor_28andless <- cor(players28_andless)
+  print(paste("Year", years[[i]], ":", "Player age <= 28"))
+  print(round(cor_28andless, 2))
+  #age is positively correlated with both wage and value.
+  #Also wage and value are highly +vely correlated.
+
+  cor_over28 <- cor(players_over28)
+  print(paste("Year", years[[i]], ":", "Player age > 28"))
+  print(round(cor_over28, 2))
+  #age is negatively correlated with both wage and value but the correlation is
+  #almost negligable b/w the age and wage pair over the years.
+  #Also wage and value are highly +vely correlated.
+
+
+  }
+
+```
+
+
+## Player tags analysis:
+
+```{r}
+library(tokenizers)
+library(tidytext)
+library(stringr)
+
+
+#######SINGLE WORDS
+tidy_fifa20 <- fi20 %>%
+  group_by(sofifa_id) %>%
+  mutate(row_num = row_number())%>%
+  ungroup() %>%
+  unnest_tokens(word, player_tags) %>%
+  select(sofifa_id, short_name, age,club, nationality, team_position, team_jersey_number,
+         overall, potential, weak_foot, skill_moves, work_rate, pace, shooting, passing,
+         dribbling, defending, physic, word)
+
+View(tidy_fifa20)
+
+
+#Most common player tags (single word):
+as_tibble(tidy_fifa20 %>% group_by(word) %>% count() %>% arrange(desc(n)))
+#Strength seems to be the most common player tag followed by acrobat and speedster.
+#Visualization:
+tidy_fifa20 %>% count(word, sort = TRUE)%>%top_n(5)%>% mutate(word=reorder(word, n))%>%
+  ggplot(aes(word,n))+geom_col()+coord_flip()+labs(x="word","frequency",
+                                                   title = "most frequent player tag words")
+
+
+#####BIGRAMS
+tidy_fifa20_bigrams <- fi20 %>%
+  group_by(sofifa_id) %>%
+  mutate(row_num = row_number())%>%
+  ungroup() %>%
+  unnest_tokens(bigram, player_tags, token = "ngrams", n=2) %>%
+  select(sofifa_id, short_name, age,club, nationality, team_position, team_jersey_number,
+         overall, potential, weak_foot, skill_moves, work_rate, pace, shooting, passing,
+         dribbling, defending, physic, bigram, attacking_heading_accuracy,
+         attacking_finishing)
+
+View(tidy_fifa20_bigrams)
+
+  
+#actual player tag bigrams:
+actual_bigrams <- tibble(bigram = c('aerial threat','fk specialist','clinical finisher',
+                                    'distance shooter','complete midfielder','complete forward','complete defender'))
+tidy_fifa20_bigrams <- tidy_fifa20_bigrams %>% 
+  semi_join(actual_bigrams, by="bigram")
+  
+
+#Most common bigrams in player tags:
+tidy_fifa20_bigrams %>% count(bigram, sort = TRUE)
+#aerial threat is the most common bigram followed by fk specialist and clinical finisher.
+#Visualization:
+tidy_fifa20_bigrams %>% count(bigram, sort = TRUE)%>%top_n(7)%>% 
+  mutate(bigram=reorder(bigram, n))%>%
+  ggplot(aes(bigram,n))+geom_col()+coord_flip()+labs(x="bigram","frequency",
+                                                   title = "most frequent player tag bigrams")
+
+```
+
+## Difference in heading abilities for pllayers based on aerial threat tag:
+```{r}
+aerial_threats <- tidy_fifa20_bigrams %>% filter(bigram == "aerial threat")
+not_aerial_threats <- tidy_fifa20_bigrams %>% filter(bigram != "aerial threat")
+
+aerial_threats %>% summarise(avg_heading = mean(attacking_heading_accuracy))
+#avg heading of 80
+not_aerial_threats %>% summarise(avg_heading = mean(attacking_heading_accuracy))
+#avg heading of 67.1
+
+#Clubs with the most aerial threats:
+tidy_fifa20_bigrams %>% filter(bigram=="aerial threat") %>%
+  count(club) %>% arrange(desc(n))
+
+```
+
+## Difference in shooting ability for pllayers based on fk specialist tag:
+```{r}
+tidy_fifa20_bigrams %>% filter(bigram=="fk specialist") %>%
+  summarise(avg_shooting = mean(shooting))
+#avg shooting 78
+tidy_fifa20_bigrams %>% filter(bigram!="fk specialist") %>%
+  summarise(avg_shooting = mean(shooting))
+#avg shooting 68
+
+
+##Clubs with the most fk specialists or clubs mostly likely to get a goal via a fk:
+tidy_fifa20_bigrams %>% filter(bigram=="fk specialist") %>%
+  count(club) %>% arrange(desc(n))
+#Juventus, PSG and Real Madrid.
+```
+## Difference in finishing ability for pllayers based on clinical finisher tag:
+```{r}
+
+tidy_fifa20_bigrams %>% filter(bigram=="clinical finisher") %>%
+  summarise(avg_finishing = mean(attacking_finishing))
+#avg finishing 88.5
+tidy_fifa20_bigrams %>% filter(bigram!="clinical finisher") %>%
+  summarise(avg_finishing = mean(attacking_finishing))
+#avg finishing 65
+
+#Clubs with the most clinical finishers:
+tidy_fifa20_bigrams %>% filter(bigram=="clinical finisher") %>%
+  count(club) %>% arrange(desc(n))
+#FC Barcelona
+```
+
+## Player traits analysis:
+```{r}
+player_traits <- fi20 %>% separate_rows(player_traits, convert = TRUE, sep = ", ")
+View(player_traits)
+
+#Most common player traits:
+player_traits %>% filter(player_traits != "") %>%
+  count(player_traits) %>% arrange(desc(n))
+
+#clubs with most crowd favs:
+player_traits %>% filter(player_traits != "") %>% 
+  filter(player_traits == "Crowd Favourite")%>%
+  count(club, player_traits) %>% arrange(desc(n))
+#Man Utd and Man City.
+
+#clubs with players who argue with officials the most:
+player_traits %>% filter(player_traits != "") %>% 
+  filter(player_traits == "Argues with Officials")%>%
+  count(club, player_traits) %>% arrange(desc(n))
+#Juventus, Napoli, Dortmund and Bayern Munich.
+
+
+#Clubs with the most selfish players:
+player_traits %>% filter(player_traits != "") %>% 
+  filter(player_traits == "Selfish")%>%
+  count(club, player_traits) %>% arrange(desc(n))
+#Ajax, man utd and city, PSG.
+#Do clubs with most selfish players have high wage bills?
+fi20 %>% group_by(club)%>% 
+  summarise(sum_wage = sum(wage_eur)) %>% arrange(desc(sum_wage))
+#Man City, Man Utd and PSG are among the top 10 clubs who have the highest wage bill 
+#per week
+
+
+#Clubs with the most injury prone players:
+player_traits %>% filter(player_traits != "") %>% 
+  filter(player_traits == "Injury Prone")%>%
+  count(club, player_traits) %>% arrange(desc(n))
+#Man Utd
+#Since Man Utd is in the top 10 clubs with highest weekly wage bills, they tend to
+#lose alot of money to players who dont play much due to injuries.
+
+#Clubs with the most leaders:
+player_traits %>% filter(player_traits != "") %>% 
+  filter(player_traits == "Leadership")%>%
+  count(club, player_traits) %>% arrange(desc(n))
+#KAA Gent, Man Utd and Eibar.
+
+#Clubs with the most divers:
+player_traits %>% filter(player_traits != "") %>% 
+  filter(player_traits == "Diver")%>%
+  count(club, player_traits) %>% arrange(desc(n))
+#Sheffield United and Vitesse
+
+#clubs with most dribblers:Speed Dribbler (CPU AI Only)
+player_traits %>% filter(player_traits != "") %>% 
+  filter(player_traits == "Speed Dribbler (CPU AI Only)")%>%
+  count(club, player_traits) %>% arrange(desc(n))
+#PSV and FC Twente
+
+#clubs with most injury free players:
+player_traits %>% filter(player_traits != "") %>% 
+  filter(player_traits == "Injury Free")%>%
+  count(club, player_traits) %>% arrange(desc(n))
+#FC Zurich, Levante, Querataro and Sunderland
+
+```
+
+
+## More EDA:
+```{r}
+
+fifa_top20_nations <- c("Belgium","France","Brazil","England","Uruguay","Croatia",
+                        "Portugal","Spain","Argentina","Colombia","Mexico","Switzerland",
+                        "Italy","Netherlands","Germany","Sweden","Chile",
+                        "Poland","Senegal")
+
+#Hypothesis: Of the top 20 ranked national teams, Spain has the best passers
+fi20 %>% filter(nationality %in% fifa_top20_nations)%>% 
+  filter(!is.na(passing))%>%
+  group_by(nationality) %>% summarise(avg_passing = mean(passing)) %>%
+  arrange(desc(avg_passing))
+#Our hypothesis is true
+
+
+#Hypothesis: of the top 20 ranked national teams, Brazil has the best dribblers
+fi20 %>% filter(nationality %in% fifa_top20_nations)%>% 
+  filter(!is.na(dribbling))%>%
+  group_by(nationality) %>% summarise(avg_dribbling = mean(dribbling)) %>%
+  arrange(desc(avg_dribbling))
+#Portugal has the best dribblers and Brazil is second. So, our hypothesis is 
+#not true.
+
+
+#Hypothesis: of the top 20 ranked national teams, England has the fastest players:
+fi20 %>% filter(nationality %in% fifa_top20_nations)%>% 
+  filter(!is.na(pace))%>%
+  group_by(nationality) %>% summarise(avg_pace = mean(pace)) %>%
+  arrange(desc(avg_pace))
+#Senegal has the fastest players, England is 6th so our hypothesis is not true.
+
+
+#Hypothesis: of the top 20 ranked national teams, Argentina has the best finishers
+fi20 %>% filter(nationality %in% fifa_top20_nations)%>% 
+  filter(!is.na(attacking_finishing))%>%
+  group_by(nationality) %>% summarise(avg_finishing = mean(attacking_finishing)) %>%
+  arrange(desc(avg_finishing))
+#Brazil best, Argentina 5th, our hypothesis is not true.
+
+
+#Hypothesis: of the top 20 ranked national teams, Italy has the best defenders
+fi20 %>% filter(nationality %in% fifa_top20_nations)%>% 
+  filter(team_position %in% c("LB","RB","LWB","RWB","LCB","RCB","CDM","LDM","CDM"))%>%
+  filter(!is.na(defending))%>%
+  group_by(nationality) %>% summarise(avg_defending = mean(defending)) %>%
+  arrange(desc(avg_defending))
+#Brazil has the best defenders, Italy is 7th, so our hypothesis is not true.
+```
