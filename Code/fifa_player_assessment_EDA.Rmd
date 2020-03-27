@@ -7,6 +7,7 @@ output: pdf_document
 
 ```{r setup, include=FALSE}
 library(ggplot2)
+library(cowplot)
 library(dplyr)
 library(tidyr)
 library(stringr)
@@ -55,6 +56,9 @@ for (i in seq_along(fifa_datasets_list)) {
   print(paste("Year", years[[i]], ":"))
   print(round(cor_ovr_val_wag, 2))
 }
+fifa20 %>% ggplot(aes(x=overall,y=value_eur)) + geom_point() + geom_jitter() +
+  labs(x = "player overall rating", y = "player value (euro)", 
+       title = "Year 2020: Plot of player rating vs player value")
 ```
 
 # 2. Player wage and age are positively correlated upto the age of 31 
@@ -64,7 +68,7 @@ for (i in seq_along(fifa_datasets_list)) {
 for (i in seq_along(fifa_datasets_list)) {
   wage_age_plt <- fifa_datasets_list[[i]] %>% ggplot(aes(age, wage_eur)) + 
     geom_point() + geom_jitter() + 
-    labs(x="player age", y="player wage in euros", 
+    labs(x="player age", y="player wage (euros)", 
          title=paste("Year", years[[i]], ":", "Wage vs Age Scatter Plot"))
   print(wage_age_plt)
 }
@@ -76,14 +80,14 @@ for (i in seq_along(fifa_datasets_list)) {
   players_over31 <- fifa_datasets_list[[i]] %>% 
     filter(age > 31)%>% select(age, wage_eur, value_eur)
   
-  cor_31andless <- cor(players31_andless)
+  cor_31andless_cor <- cor(players31_andless)
   print(paste("Year", years[[i]], ":", "Players <= 31"))
-  print(round(cor_31andless, 2))
+  print(round(cor_31andless_cor, 2))
   #age and wage are +vely correlated but the correlation is not very high.
 
-  players_over31 <- cor(players_over31)
+  players_over31_cor <- cor(players_over31)
   print(paste("Year", years[[i]], ":", "Players > 31"))
-  print(round(players_over31, 2))
+  print(round(players_over31_cor, 2))
   #age and wage are -vely correlated but the correlation is not very high.
 }
 ```
