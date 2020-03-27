@@ -105,7 +105,9 @@ library(stringr)
 
 
 #######SINGLE WORDS
-tidy_fifa20 <- fi20 %>%
+for (i in seq_along(fifa_datasets_list))
+{
+tidy_fifa20 <- fifa_datasets_list[[i]] %>%
   group_by(sofifa_id) %>%
   mutate(row_num = row_number())%>%
   ungroup() %>%
@@ -114,20 +116,27 @@ tidy_fifa20 <- fi20 %>%
          overall, potential, weak_foot, skill_moves, work_rate, pace, shooting, passing,
          dribbling, defending, physic, word)
 
-View(tidy_fifa20)
+#View(tidy_fifa20)
 
 
 #Most common player tags (single word):
-as_tibble(tidy_fifa20 %>% group_by(word) %>% count() %>% arrange(desc(n)))
+tags <- as_tibble(tidy_fifa20 %>% group_by(word) %>% count() %>% arrange(desc(n)))
+print(paste("Most common single word player tags in", years[[i]],":"))
+print(tags)
 #Strength seems to be the most common player tag followed by acrobat and speedster.
 #Visualization:
-tidy_fifa20 %>% count(word, sort = TRUE)%>%top_n(5)%>% mutate(word=reorder(word, n))%>%
+tagswordplot <- tidy_fifa20 %>% count(word, sort = TRUE)%>%top_n(5)%>% mutate(word=reorder(word, n))%>%
   ggplot(aes(word,n))+geom_col()+coord_flip()+labs(x="word","frequency",
                                                    title = "most frequent player tag words")
+print(tagswordplot)
+
+}
 
 
 #####BIGRAMS
-tidy_fifa20_bigrams <- fi20 %>%
+for (i in seq_along(fifa_datasets_list))
+{
+tidy_fifa20_bigrams <- fifa_datasets_list[[i]] %>%
   group_by(sofifa_id) %>%
   mutate(row_num = row_number())%>%
   ungroup() %>%
@@ -137,7 +146,7 @@ tidy_fifa20_bigrams <- fi20 %>%
          dribbling, defending, physic, bigram, attacking_heading_accuracy,
          attacking_finishing)
 
-View(tidy_fifa20_bigrams)
+#View(tidy_fifa20_bigrams)
 
   
 #actual player tag bigrams:
@@ -148,13 +157,18 @@ tidy_fifa20_bigrams <- tidy_fifa20_bigrams %>%
   
 
 #Most common bigrams in player tags:
-tidy_fifa20_bigrams %>% count(bigram, sort = TRUE)
-#aerial threat is the most common bigram followed by fk specialist and clinical finisher.
+tags_bigrams <- tidy_fifa20_bigrams %>% count(bigram, sort = TRUE)
+print(paste("Most common player tag bigrams in", years[[i]],":"))
+print(tags_bigrams)
+#aerial threat is the most common bigram followed by fk specialist and distance shooter.
 #Visualization:
-tidy_fifa20_bigrams %>% count(bigram, sort = TRUE)%>%top_n(7)%>% 
+tags_bigrams_plot <- tidy_fifa20_bigrams %>% count(bigram, sort = TRUE)%>%top_n(7)%>% 
   mutate(bigram=reorder(bigram, n))%>%
   ggplot(aes(bigram,n))+geom_col()+coord_flip()+labs(x="bigram","frequency",
                                                    title = "most frequent player tag bigrams")
+print(tags_bigrams_plot)
+
+}
 
 ```
 
@@ -282,44 +296,49 @@ fifa_top20_nations <- c("Belgium","France","Brazil","England","Uruguay","Croatia
                         "Italy","Netherlands","Germany","Sweden","Chile",
                         "Poland","Senegal")
 
+for (i in seq_along(fifa_datasets_list))
+{
+
 #Hypothesis: Of the top 20 ranked national teams, Spain has the best passers
-fi20 %>% filter(nationality %in% fifa_top20_nations)%>% 
+passing_hyp <- fifa_datasets_list[[i]] %>% filter(nationality %in% fifa_top20_nations)%>% 
   filter(!is.na(passing))%>%
   group_by(nationality) %>% summarise(avg_passing = mean(passing)) %>%
   arrange(desc(avg_passing))
+print(paste("best passing country in",years[[i]],"is :"))
+print(passing_hyp)
 #Our hypothesis is true
 
 
 #Hypothesis: of the top 20 ranked national teams, Brazil has the best dribblers
-fi20 %>% filter(nationality %in% fifa_top20_nations)%>% 
+dribbling_hyp <- fifa_datasets_list[[i]] %>% filter(nationality %in% fifa_top20_nations)%>% 
   filter(!is.na(dribbling))%>%
   group_by(nationality) %>% summarise(avg_dribbling = mean(dribbling)) %>%
   arrange(desc(avg_dribbling))
+print(paste("best dribbling country in",years[[i]],"is :"))
+print(dribbling_hyp)
 #Portugal has the best dribblers and Brazil is second. So, our hypothesis is 
 #not true.
 
 
 #Hypothesis: of the top 20 ranked national teams, England has the fastest players:
-fi20 %>% filter(nationality %in% fifa_top20_nations)%>% 
+fastest_hyp <- fifa_datasets_list[[i]] %>% filter(nationality %in% fifa_top20_nations)%>% 
   filter(!is.na(pace))%>%
   group_by(nationality) %>% summarise(avg_pace = mean(pace)) %>%
   arrange(desc(avg_pace))
+print(paste("fastest country in",years[[i]],"is :"))
+print(fastest_hyp)
 #Senegal has the fastest players, England is 6th so our hypothesis is not true.
 
 
-#Hypothesis: of the top 20 ranked national teams, Argentina has the best finishers
-fi20 %>% filter(nationality %in% fifa_top20_nations)%>% 
-  filter(!is.na(attacking_finishing))%>%
-  group_by(nationality) %>% summarise(avg_finishing = mean(attacking_finishing)) %>%
-  arrange(desc(avg_finishing))
-#Brazil best, Argentina 5th, our hypothesis is not true.
-
-
 #Hypothesis: of the top 20 ranked national teams, Italy has the best defenders
-fi20 %>% filter(nationality %in% fifa_top20_nations)%>% 
+defen_hyp <- fifa_datasets_list[[i]] %>% filter(nationality %in% fifa_top20_nations)%>% 
   filter(team_position %in% c("LB","RB","LWB","RWB","LCB","RCB","CDM","LDM","CDM"))%>%
   filter(!is.na(defending))%>%
   group_by(nationality) %>% summarise(avg_defending = mean(defending)) %>%
   arrange(desc(avg_defending))
+print(paste("best defending country in",years[[i]],"is :"))
+print(defen_hyp)
 #Brazil has the best defenders, Italy is 7th, so our hypothesis is not true.
+
+}
 ```
