@@ -36,16 +36,20 @@ fi19 <- fread('D:/NEU/Spring 2020/SML/Project/Datasets/players_19.csv')
 fi18 <- fread('D:/NEU/Spring 2020/SML/Project/Datasets/players_18.csv')
 fi17 <- fread('D:/NEU/Spring 2020/SML/Project/Datasets/players_17.csv')
 fi16 <- fread('D:/NEU/Spring 2020/SML/Project/Datasets/players_16.csv')
+fi15 <- fread('D:/NEU/Spring 2020/SML/Project/Datasets/players_15.csv')
 
 fi20 <- as_tibble(fi20)
 fi19 <- as_tibble(fi19)
 fi18 <- as_tibble(fi18)
 fi17 <- as_tibble(fi17)
 fi16 <- as_tibble(fi16)
+fi15 <- as_tibble(fi15)
 
 fifa_datasets_list = list(fi16, fi17, fi18, fi19, fi20)
 years = list("2016", "2017", "2018", "2019", "2020")
 
+fifa_datasets_list2 = list(fi15, fi16, fi17, fi18, fi19, fi20)
+years2 = list("2015", "2016", "2017", "2018", "2019", "2020")
 
 ```
 
@@ -341,4 +345,34 @@ print(defen_hyp)
 #Brazil has the best defenders, Italy is 7th, so our hypothesis is not true.
 
 }
+```
+
+## High risk hypothesis 
+## The starting eleven with the highest overall rating for a given year wins the champions league that year.
+```{r}
+#Highest rated starting 11s on fifa from 2016-20:
+
+for (i in seq_along(fifa_datasets_list2))
+{
+  best_teams_fifa <- fifa_datasets_list2[[i]] %>% 
+    filter(!club %in% c("Uruguay","Colombia","Mexico","Netherlands"))%>%
+  filter(!team_position %in% c("SUB","RES")) %>%
+  group_by(club) %>%
+  summarise(avg_player_ovr = mean(overall)) %>%
+  top_n(1)
+  print(paste("Best starting 11s on fifa for the year",years2[[i]],":"))
+  print(best_teams_fifa)
+  
+}
+
+#Best team 2015: Real Madrid  #Champions league winner 2015: FC Barcelona
+#Best team 2016: FC Barcelona  #Champions league winner 2016: Real Madrid
+#Best team 2017: Real Madrid  #Champions league winner 2017: Real Madrid
+#Best team 2018: Real Madrid  #Champions league winner 2018: Real Madrid
+#Best team 2019: Real Madrid  #Champions league winner 2019: Liverpool
+#Best team 2020: FC Barcelona  #Champions league winner 2020: Didnt happen yet
+
+
+#Of the last 6 years, twice the champions league was won by the team that was the strongest
+#on fifa that year.
 ```
