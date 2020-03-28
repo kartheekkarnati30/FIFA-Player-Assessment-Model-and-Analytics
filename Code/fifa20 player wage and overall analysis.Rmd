@@ -1,0 +1,205 @@
+---
+title: "FIFA20 Regression Problems"
+author: "Naga Santhosh Kartheek Karnati"
+date: "3/28/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(data.table)
+library(rio)
+library(modelr)
+library(purrr)
+
+
+
+f20 <- fread('D:/NEU/Spring 2020/SML/Project/Datasets/players_20.csv')
+
+f20 <- as_tibble(f20)
+
+f20 <- f20 %>% select(-player_url, -long_name, -dob, -player_positions, -body_type, -real_face,
+                      -real_face, -player_tags, -loaned_from, -joined, -contract_valid_until, 
+                      -nation_position, -nation_jersey_number, -player_traits)
+
+f20 <- f20 %>% select(-(66:91))
+
+View(f20)
+
+
+f20_sans_gks <- f20 %>% select(-gk_diving, -gk_handling, -gk_kicking, -gk_reflexes,
+                               -gk_speed, -gk_positioning, -goalkeeping_diving,
+                               -goalkeeping_handling, -goalkeeping_kicking, 
+                               -goalkeeping_positioning, -goalkeeping_reflexes)
+
+f20_gks <- f20%>% select(age, height_cm, weight_kg, overall, potential, value_eur, wage_eur,
+                         international_reputation, weak_foot, release_clause_eur, gk_diving, gk_handling, gk_kicking, gk_reflexes, gk_speed,
+                         gk_positioning) %>% 
+  filter(!is.na(gk_diving))
+
+dim(f20_gks)
+
+```
+
+## LINEAR MODEL: FULL SUBSET SELECTION
+```{r}
+library(purrr)
+#Players excluding GKs:
+#Full subset selection:
+full_subset_model <- lm(wage_eur~. , data = subset(f20_sans_gks, select = c(- short_name, -sofifa_id, -nationality, -club, -preferred_foot, 
+     -team_position, -team_jersey_number, -work_rate)))
+
+
+#Summary of the model for feature selection:
+summary(full_subset_model)
+#Features that influence wage the mmost:
+#age, height, weight, value, international_reputation, release clause, skill fk accuracy,
+#skill long passing and mentality composure.
+```
+
+
+## FORWARD FEATURE SELECTION:
+```{r}
+#Forward selection:
+library(leaps)
+ffs_fit <- regsubsets(wage_eur~., data= subset(f20_sans_gks, select = c(- short_name, -sofifa_id, -nationality, -club, -preferred_foot, 
+     -team_position, -team_jersey_number, -work_rate)), method = "forward")
+
+ffs_fit_summary <- summary(ffs_fit)
+coef(ffs_fit, 8)
+names(ffs_fit)
+#The features influencing wage the most: age, value, international reputation,
+#release clause, attacking crossing, fk accuracy, mentality composure and sliding tackle.
+
+```
+
+## RRS, Adjr2, Cp and BIC measures:
+```{r}
+
+par(mfrow=c(2,2))
+plot(ffs_fit_summary$rss,xlab="Number of Variables",ylab="RSS",type="l")
+
+plot(ffs_fit_summary$adjr2,xlab="Number of Variables",ylab="Adjusted RSq",type="l")
+which.max(ffs_fit_summary$adjr2)
+points(8,ffs_fit_summary$adjr2[8], col="red",cex=2,pch=20)
+
+plot(ffs_fit_summary$cp,xlab="Number of Variables",ylab="Cp",type='l')
+which.min(ffs_fit_summary$cp)
+points(8,ffs_fit_summary$cp[8],col="red",cex=2,pch=20)
+
+which.min(ffs_fit_summary$bic)
+plot(ffs_fit_summary$bic,xlab="Number of Variables",ylab="BIC",type='l')
+points(6,ffs_fit_summary$bic[8],col="red",cex=2,pch=20)
+
+```
+
+
+```{r}
+plot(ffs_fit,scale="r2")
+plot(ffs_fit,scale="adjr2")
+plot(ffs_fit,scale="Cp")
+plot(ffs_fit,scale="bic")
+```
+
+
+## LINEAR MODEL FOR GKs:
+```{r}
+
+#Full subset selection for goalkeepers:
+full_subset_model_gk <- lm(wage_eur~. , data=f20_gks)
+summary(full_subset_model_gk)
+#Features that influence goalkeeper's wage:
+#age, height, value, international reputation and release clause.
+
+```
+
+
+## Stepwise Forward selection for GKs:
+```{r}
+ffs_fit_gks <- regsubsets(wage_eur ~ ., data = f20_gks, method = "forward")
+ffs_fit_gks_summary <- summary(ffs_fit_gks)
+coef(ffs_fit_gks, 8)
+#features selected in stepwise forward selection: age, height, weight, overall, value,
+#international reputation, release clause, gk positioning.
+
+```
+
+## RSS, Adjr2, Cp and BIC measures:
+```{r}
+par(mfrow=c(2,2))
+plot(ffs_fit_gks_summary$rss,xlab="Number of Variables",ylab="RSS",type="l")
+
+plot(ffs_fit_gks_summary$adjr2,xlab="Number of Variables",ylab="Adjusted RSq",type="l")
+which.max(ffs_fit_gks_summary$adjr2)
+points(5,ffs_fit_gks_summary$adjr2[8], col="red",cex=2,pch=20)
+
+plot(ffs_fit_gks_summary$cp,xlab="Number of Variables",ylab="Cp",type='l')
+which.min(ffs_fit_gks_summary$cp)
+points(5,ffs_fit_gks_summary$cp[8],col="red",cex=2,pch=20)
+
+which.min(ffs_fit_gks_summary$bic)
+plot(ffs_fit_gks_summary$bic,xlab="Number of Variables",ylab="BIC",type='l')
+points(4,ffs_fit_gks_summary$bic[8],col="red",cex=2,pch=20)
+
+
+```
+
+
+## Player overall: FULL SUBSET SELECTION
+```{r}
+#Player overall
+ovr_model <- lm(overall~. , data = subset(f20_sans_gks, select = c(- short_name, -sofifa_id, -nationality, -club, -preferred_foot, 
+     -team_position, -team_jersey_number, -work_rate)))
+
+
+#Summary of the model for feature selection:
+summary(ovr_model)
+
+
+
+```
+## Player overall: STEPWISE FORWARD SELECTION
+```{r}
+ovr_ffs_model <- regsubsets(overall ~ ., data= subset(f20_sans_gks, select = c(- short_name, -sofifa_id, -nationality, -club, -preferred_foot, 
+     -team_position, -team_jersey_number, -work_rate)), method = "forward")
+ovr_ffs_model_summary <- summary(ovr_ffs_model)
+ovr_ffs_model
+coef(ovr_ffs_model, 8)
+
+
+```
+
+## RSS, Adjr2, Cp and BIC measures:
+```{r}
+par(mfrow=c(2,2))
+plot(ovr_ffs_model_summary$rss,xlab="Number of Variables",ylab="RSS",type="l")
+
+plot(ovr_ffs_model_summary$adjr2,xlab="Number of Variables",ylab="Adjusted RSq",type="l")
+which.max(ovr_ffs_model_summary$adjr2)
+points(8,ovr_ffs_model_summary$adjr2[8], col="red",cex=2,pch=20)
+
+plot(ovr_ffs_model_summary$cp,xlab="Number of Variables",ylab="Cp",type='l')
+which.min(ovr_ffs_model_summary$cp)
+points(8,ovr_ffs_model_summary$cp[8],col="red",cex=2,pch=20)
+
+which.min(ovr_ffs_model_summary$bic)
+plot(ovr_ffs_model_summary$bic,xlab="Number of Variables",ylab="BIC",type='l')
+points(8,ovr_ffs_model_summary$bic[8],col="red",cex=2,pch=20)
+
+
+```
