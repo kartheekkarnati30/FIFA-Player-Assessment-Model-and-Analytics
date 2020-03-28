@@ -1,5 +1,5 @@
 ---
-title: "FIFA Data Cleaning"
+title: "FIFA 20 Predicting Player Value"
 author: "Akshit Jain"
 date: "3/28/2020"
 output: pdf_document
@@ -39,6 +39,52 @@ clean_fifa20 <- na.omit(updated_fifa20)
 clean_fifa20
 ```
 
+```{r}
+df <- sample_n(clean_fifa20, nrow(clean_fifa20))
+df <- df %>% select(-short_name, -nationality, -club, -body_type, -team_jersey_number, -team_position)
+```
+
+# Fit a linear model for player value
+```{r}
+value.fit <- lm(value_eur ~., data=df)
+summary(value.fit)
+names(value.fit)
+```
+
+# Exploring predictors that have an impact on player value
+```{r}
+
+# overall
+fit_overall <- lm(log(value_eur) ~ log(overall), data = df)
+summary(fit_overall)
+
+plot(log(value_eur) ~ log(overall), data = df)
+abline(fit_overall, col="red")
+
+# potential
+fit_potential <- lm(log(value_eur) ~ log(potential), data = df)
+summary(fit_potential)
+
+plot(log(value_eur) ~ log(potential), data = df)
+abline(fit_potential, col="red")
+
+
+# release_clause_eur
+fit_rc <- lm(value_eur ~ release_clause_eur, data = df)
+summary(fit_rc)
+
+plot(value_eur ~ release_clause_eur, data = df)
+abline(fit_rc, col="red")
+
+# attacking_volleys
+fit_av <- lm(log(value_eur) ~ log(attacking_volleys), data = df)
+summary(fit_av)
+
+plot(log(value_eur) ~ log(attacking_volleys), data = df)
+abline(fit_av, col="red")
+
+```
+
 # Feature Selection: Forward Stepwise Selection
 ```{r}
 
@@ -48,7 +94,7 @@ df <- df %>% select(-short_name, -nationality, -club, -body_type, -team_jersey_n
 library(leaps)
 regfit.fwd=regsubsets(value_eur~.,df, method="forward")
 reg.summary <- summary(regfit.fwd)
-coef(regfit.fwd, 8)
+reg.summary
 ```
 
 ```{r}
@@ -75,4 +121,8 @@ plot(regfit.fwd,scale="r2")
 plot(regfit.fwd,scale="adjr2")
 plot(regfit.fwd,scale="Cp")
 plot(regfit.fwd,scale="bic")
+```
+
+```{r}
+coef(regfit.fwd, 8)
 ```
