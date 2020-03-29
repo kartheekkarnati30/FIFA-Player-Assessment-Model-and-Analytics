@@ -1265,8 +1265,82 @@ fifa20_sans_gks %>% ggplot(aes(physic, defending_sliding_tackle))+geom_point()+
 cor(fifa20_sans_gks$physic, fifa20_sans_gks$defending_sliding_tackle,
     method = "spearman", use = "complete.obs")
 #correlation is higher without GKs since they dont really tackle in matches either.
+```
+
+```{r}
+fifa20 <- fread('D:/NEU/Spring 2020/SML/Project/Datasets/players_20.csv')
+class(fifa20)
+#View(fifa20)
+#fifa20 as a tibble
+fifa20 <- as_tibble(fifa20)
+
+####ANALYSIS OF PLAYER POSITION VS VALUE:
+unique(fifa20$team_position)
+
+fifa20_dup <- fifa20 
+unique(fifa20_dup$team_position)
+
+fifa20_dup$team_position[fifa20_dup$team_position %in% 
+                          c("RW","LW","ST","CF","LS","RS","RF","LF")] <- "Attack"
+
+fifa20_dup$team_position[fifa20_dup$team_position %in% 
+                          c("LCB","RCB","LB","RB","CB","LWB","RWB")] <- "Defense"
+
+fifa20_dup$team_position[fifa20_dup$team_position %in% 
+                          c("CAM","RCM","CDM","LDM","RM","LCM","LM",
+                                       "RDM","RAM","CM","LAM")] <- "Midfield"
+
+#POSITION VS VALUE
+fifa20_dup %>% filter(team_position %in% c("Attack","Midfield","Defense")) %>%
+  ggplot(aes(team_position, value_eur))+geom_boxplot()+ylim(0,2250000)+
+  labs(x="player team position", y="value in euros", title = "position vs value")
+#POSITION VS WAGE
+fifa20_dup %>% filter(team_position %in% c("Attack","Midfield","Defense")) %>%
+  ggplot(aes(team_position, wage_eur))+geom_boxplot()+ylim(0,2250000)+
+  labs(x="player team position", y="wage in euros", title = "position vs value")
 
 
 
+
+#ATTACK:
+fifa20 %>% filter(team_position %in% c("RW","LW","ST","CF","LS","RS","RF","LF")) %>%
+  summarise(avval = mean(value_eur))
+#MIDFIELD:
+fifa20 %>% filter(team_position %in% c("CAM","RCM","CDM","LDM","RM","LCM","LM",
+                                       "RDM","RAM","CM","LAM")) %>%
+    summarise(avval = mean(value_eur))
+#DEFENSE :
+fifa20 %>% filter(team_position %in% c("LCB","RCB","LB","RB","CB","LWB","RWB")) %>%
+    summarise(avval = mean(value_eur))
+
+
+####ANALYSIS OF PLAYER POSITION VS WAGE:
+unique(fifa20$team_position)
+
+#ATTACK:
+fifa20 %>% filter(team_position %in% c("RW","LW","ST","CF","LS","RS","RF","LF")) %>%
+  summarise(avwag = mean(wage_eur))
+#MIDFIELD:
+fifa20 %>% filter(team_position %in% c("CAM","RCM","CDM","LDM","RM","LCM","LM",
+                                       "RDM","RAM","CM","LAM")) %>%
+    summarise(avwag = mean(wage_eur))
+#DEFENSE :
+fifa20 %>% filter(team_position %in% c("LCB","RCB","LB","RB","CB","LWB","RWB")) %>%
+    summarise(avwag = mean(wage_eur))
+
+####WORK RATE VS VALUE:
+fifa20 %>% ggplot(aes(work_rate, value_eur))+geom_boxplot()+ ylim(0,2250000)+coord_flip()+
+  labs(x="player work rate", y="player value in euros", title = "work rate vs value")
+    
+
+
+
+
+#######REGEX INJURY PRONE:
+
+fifa20 <- fifa20 %>% mutate(injury_prone = str_detect(fifa20$player_traits, "Injury Prone"))
+
+fifa20$injury_prone[fifa20$injury_prone == "TRUE"] <- 1
+fifa20 %>% group_by(work_rate, injury_prone) %>% count()
 ```
 
