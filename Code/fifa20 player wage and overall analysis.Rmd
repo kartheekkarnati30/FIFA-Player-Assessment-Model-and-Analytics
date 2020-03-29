@@ -203,3 +203,24 @@ points(8,ovr_ffs_model_summary$bic[8],col="red",cex=2,pch=20)
 
 
 ```
+
+## Value vs overall analysis:
+```{r}
+f20_sans_gks_no0value <- f20_sans_gks%>%
+  filter(value_eur != 0)
+
+val_ovr_fit <- lm(log(value_eur) ~ overall, data= subset(f20_sans_gks_no0value, select = c(- short_name, -sofifa_id, -nationality, -club, -preferred_foot, 
+     -team_position, -team_jersey_number, -work_rate)))
+
+summary(val_ovr_fit)
+
+subset(f20_sans_gks_no0value, select = c(- short_name, -sofifa_id, -nationality, -club, -preferred_foot, 
+     -team_position, -team_jersey_number, -work_rate))%>% 
+  add_predictions(val_ovr_fit)%>%
+  ggplot(aes(overall))+
+  geom_point(aes(y=log(value_eur))) +
+geom_line(aes(y=pred))
+
+
+```
+
