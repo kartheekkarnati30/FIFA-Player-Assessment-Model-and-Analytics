@@ -1,0 +1,302 @@
+---
+title: "fifa20 attack work rate classification"
+author: "Naga Santhosh Kartheek Karnati"
+date: "4/4/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(data.table)
+library(rio)
+library(modelr)
+library(purrr)
+
+fifa20 <- fread('D:/NEU/Spring 2020/SML/Project/Datasets/players_20.csv')
+class(fifa20)
+#View(fifa20)
+#fifa20 as a tibble
+fifa20 <- as_tibble(fifa20)
+```
+```{r}
+updated_fifa20 <- fifa20 %>% select(-player_url, -long_name, -dob, -real_face, -player_tags, 
+                                    -loaned_from, -joined, -player_positions, -contract_valid_until,
+                                    -nation_position, -nation_jersey_number, -player_traits, -gk_diving,
+                                    -gk_handling, -gk_kicking, -gk_reflexes, -gk_speed, -gk_positioning,
+                                    -goalkeeping_diving, -goalkeeping_handling, -goalkeeping_kicking,
+                                    -goalkeeping_positioning, -goalkeeping_reflexes, 
+                                    -ls, -st, -rs, -lw, -lf, -cf, -rf, -rw, -lam, -cam, -ram, 
+                                    -lm, -lcm, -cm, -rcm, -rm, -lwb, -ldm, -cdm, -rdm, -rwb, 
+                                    -lb, -lcb, -cb, -rcb, -rb)
+
+
+clean_fifa20 <- na.omit(updated_fifa20)
+clean_fifa20
+
+```
+
+```{r}
+
+df <- clean_fifa20 %>% select(-sofifa_id, -short_name, -nationality, -club, -body_type, -team_jersey_number, -team_position, -preferred_foot)
+
+
+#split work rate into attack work rate and defense work rate:
+df <- separate(df, work_rate, into = c("attack_workrate","defence_workrate"),
+         sep = "/")
+df <- df%>% select(-defence_workrate)
+dim(df)
+
+#number of classes in attack_workrate:
+unique(df$attack_workrate)
+#3 classes: Medium, High and Low
+
+```
+
+#Various classification models to classify attack work rate:
+```{r}
+library(caret)
+library(pROC)
+
+#splitting the data into train and test sets:
+set.seed(1)
+training.samples <- df$attack_workrate %>% createDataPartition(p = 0.8, list = FALSE)
+train.data  <- df[training.samples, ]
+test.data <- df[-training.samples, ]
+dim(train.data)
+dim(test.data)
+```
+
+#Multinomial logistic regression:
+```{r}
+set.seed(2)
+# Fit the model
+model <- nnet::multinom(attack_workrate ~., data = train.data)
+# Summarize the model
+summary(model)
+# Make predictions
+predicted.classes <- model %>% predict(test.data)
+head(predicted.classes)
+# Model accuracy
+mean(predicted.classes == test.data$attack_workrate)
+#Accuracy of 68.6%
+```
+
+#LDA Classification:
+```{r}
+set.seed(3)
+trCtrl <- trainControl(method = "cv", number = 5)
+lda_fit_wrate <- train(attack_workrate~., data=train.data, method="lda", 
+              trControl = trCtrl, metric = "Accuracy")
+
+
+lda_pred_wrate <- predict(lda_fit_wrate, test.data%>%select(-attack_workrate))
+lda_comparison <- data.frame(original = test.data$attack_workrate, pred = lda_pred_wrate)
+
+#accuarcy of cross validated LDA model:
+mean(lda_comparison$pred == test.data$attack_workrate)
+#67.3% accuracy
+
+#confusion matrix:
+confusionMatrix(as.factor(test.data$attack_workrate), lda_comparison$pred)
+
+lda_pred_wrate1 <- predict(lda_fit_wrate, test.data%>%select(-attack_workrate), type="prob")
+###ROC curve:
+multiclass.roc(test.data$attack_workrate, lda_pred_wrate1)
+#Multi-class area under the curve: 0.796
+```
+
+##QDA Classification:
+```{r}
+set.seed(4)
+trCtrl <- trainControl(method = "cv", number = 5)
+qda_fit_wrate <- train(attack_workrate~., data=train.data, method="qda", 
+              trControl = trCtrl, metric = "Accuracy")
+
+
+qda_pred_wrate <- predict(qda_fit_wrate, test.data%>%select(-attack_workrate))
+qda_comparison <- data.frame(original = test.data$attack_workrate, pred = qda_pred_wrate)
+
+#accuarcy of cross validated QDA model:
+mean(qda_comparison$pred == test.data$attack_workrate)
+#56.3% accuracy
+#lesser accuracy than LDA model, maybe features share the same covraince matrix.
+
+#confusion matrix:
+confusionMatrix(as.factor(test.data$attack_workrate), qda_comparison$pred)
+
+qda_pred_wrate1 <- predict(qda_fit_wrate, test.data%>%select(-attack_workrate), type="prob")
+###ROC curve:
+multiclass.roc(test.data$attack_workrate, qda_pred_wrate1)
+#Multi-class area under the curve: 0.7866
+```
+
+#Decision tree classification:
+```{r}
+set.seed(5)
+trCtrl <- trainControl(method = "cv", number = 5)
+dt_fit_wrate <- train(attack_workrate~., data=train.data, method="rpart", 
+              trControl = trCtrl, metric = "Accuracy")
+
+
+dt_pred_wrate <- predict(dt_fit_wrate, test.data%>%select(-attack_workrate))
+dt_comparison <- data.frame(original = test.data$attack_workrate, pred = dt_pred_wrate)
+
+#accuarcy of cross validated decision tree model:
+mean(dt_comparison$pred == test.data$attack_workrate)
+#67.6% accuracy
+#more accauracy than QDA model
+
+#confusion matrix:
+confusionMatrix(as.factor(test.data$attack_workrate), dt_comparison$pred)
+
+dt_pred_wrate1 <- predict(dt_fit_wrate, test.data%>%select(-attack_workrate), type="prob")
+###ROC curve:
+multiclass.roc(test.data$attack_workrate, dt_pred_wrate1)
+#Multi-class area under the curve: 0.6467
+
+#Less accuarcy of the above models might be dute to having too many features in the
+#model. We can perform dimensionality reduction to imcrease the accuracy.
+```
+
+#Dimensionality reduction: PCA
+```{r}
+#PCA train and test sets:
+pca_trainset <- train.data %>% select( -attack_workrate)
+pca_testset <- test.data
+str(pca_trainset)
+dim(pca_trainset)
+
+#PCA on the train set:
+pca <- prcomp( pca_trainset, scale = T )
+
+# variance
+pr_var <- ( pca$sdev )^2 
+
+# % of variance
+prop_varex <- pr_var / sum( pr_var )
+
+#plot of proportion of variance explained by components:
+plot( prop_varex, xlab = "Principal Component", 
+                  ylab = "Proportion of Variance Explained", type = "b" )
+
+
+#Scree plot, prop of cumulative variance explained by components:
+plot( cumsum( prop_varex ), xlab = "Principal Component", 
+                            ylab = "Cumulative Proportion of Variance Explained", type = "b" )
+
+#we see that about 97% of the variance explained is done by 34 of the 46 features.
+#Therefore we can model with these first 36 PCs.
+```
+
+#PCA Continuation:
+```{r}
+# Creating a new dataset
+train = data.frame( class = train.data$attack_workrate, pca$x )
+t = as.data.frame( predict( pca, newdata = pca_testset ) )
+  
+new_trainset = train[, 1:37]
+new_testset =  t[, 1:36]
+```
+
+#LDA model on the new dataset after PCA:
+```{r}
+fit_wrate_pca_lda <- train(class~., data=new_trainset, method="lda", 
+              trControl = trCtrl, metric = "Accuracy")
+
+tt <- predict( fit_wrate_pca_lda, new_testset)
+
+#accuarcy of cross validated PCA-LDA model:
+mean(tt == pca_testset$attack_workrate)
+#67.45% accuracy
+#The accuracy didnt increase much even after performing PCA.
+#confusion matrix:
+confusionMatrix(as.factor(pca_testset$attack_workrate), tt)
+```
+
+#Decision tree model on the new dataset after PCA:
+```{r}
+fit_wrate_pca_dt <- train(class~., data=new_trainset, method="rpart", 
+              trControl = trCtrl, metric = "Accuracy")
+
+tt <- predict( fit_wrate_pca_dt, new_testset)
+
+#accuarcy of cross validated PCA-LDA model:
+mean(tt == pca_testset$attack_workrate)
+#67% accuracy
+#The accuracy didnt increase much even after performing PCA.
+#confusion matrix:
+confusionMatrix(as.factor(pca_testset$attack_workrate), tt)
+```
+
+#Correlation matrix to reduce number of features:
+```{r}
+#correlaiton matrix:
+dup_df <- df%>%select(-attack_workrate)
+cor_mat <- cor(dup_df)
+#summary of cor mat:
+#print(cor_mat)
+#attributes that are highly correlated:
+highlyCorrelated <- findCorrelation(cor_mat, cutoff=0.75)
+#indices of highly correlated attributes:
+highlyCorrelated
+#we get 27 features that are highly correlated
+#View(dup_df)
+#selecting only relevant features from dup_df:
+dup_df <- dup_df[,highlyCorrelated]
+dim(dup_df)
+#append work_rate to dup_df:
+dataset <- cbind(attack_workrate = df$attack_workrate, dup_df)
+dim(dataset)
+```
+
+#Classification models on dataset:
+```{r}
+#split dataset into train and test sets:
+set.seed(8)
+smp_size <- floor(0.80 * nrow(dataset))
+train_ind <- sample(seq_len(nrow(dataset)), size = smp_size)
+
+ds_train <- dataset[train_ind, ]
+ds_test <- dataset[-train_ind, ]
+```
+
+#LDA on dataset
+```{r}
+ds_fit_wrate <- train(attack_workrate~., data=ds_train, method="lda", 
+              trControl = trCtrl, metric = "Accuracy")
+
+
+ds_pred_wrate <- predict(ds_fit_wrate, ds_test%>%select(-attack_workrate))
+ds_comparison <- data.frame(original = ds_test$attack_workrate, pred = ds_pred_wrate)
+
+#accuarcy of cross validated LDA model:
+mean(ds_comparison$pred == ds_test$attack_workrate)
+#67.4% accuracy
+
+#confusion matrix:
+confusionMatrix(as.factor(ds_test$attack_workrate), ds_comparison$pred)
+#The accuracy is still low even after using a subset of features from the original
+#dataset.
+
+
+##########work rates were probably not determined other features in the dataset.
+#but were rather determined with a fair amount of bias involved.
+```
+
+
