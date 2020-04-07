@@ -39,7 +39,7 @@ f20 <- f20 %>% select(-player_url, -long_name, -dob, -player_positions, -body_ty
 
 f20 <- f20 %>% select(-(66:91))
 
-View(f20)
+#View(f20)
 
 
 f20_sans_gks <- f20 %>% select(-gk_diving, -gk_handling, -gk_kicking, -gk_reflexes,
@@ -173,6 +173,23 @@ summary(ovr_model)
 
 
 ```
+
+```{r}
+#The significant variables to predict overall are: age, weight_kg, potential, value_eur,
+#international_reputation, weak_foot, skill_moves, release_clause_eur, attacking _heading,
+#attacking short passing, skill curve, skill ball control, movement reactions, movement
+#balance, mentality positioning, mentality vision, mentality composure, defending sliding
+#tackle.
+#dataset containing only these variables:
+overall_full_subset <- f20_sans_gks %>% select(overall, age, weight_kg, potential, value_eur, international_reputation, weak_foot, skill_moves, release_clause_eur, 
+      attacking_heading_accuracy, attacking_short_passing, skill_curve, skill_ball_control,
+      movement_reactions, movement_balance, mentality_positioning, mentality_vision,
+      mentality_composure, defending_sliding_tackle)
+#perform linear regression on this dataset to predict player value.
+#str(overall_full_subset)
+```
+
+
 ## Player overall: STEPWISE FORWARD SELECTION
 ```{r}
 ovr_ffs_model <- regsubsets(overall ~ ., data= subset(f20_sans_gks, select = c(- short_name, -sofifa_id, -nationality, -club, -preferred_foot, 
@@ -183,6 +200,18 @@ coef(ovr_ffs_model, 8)
 
 
 ```
+
+
+```{r}
+#significant variables to predict overall using stepwise forward selection are age,
+#potential, value_eur, skill ball control, movement reactions, power stamina, power
+#stamina, mentality composure.
+overall_step_forward <- f20_sans_gks %>% select(overall, age, potential, value_eur,
+      skill_ball_control, movement_reactions, power_stamina, power_strength,
+      mentality_composure)
+#use this dataset to predict overall.
+```
+
 
 ## RSS, Adjr2, Cp and BIC measures:
 ```{r}
@@ -224,3 +253,285 @@ geom_line(aes(y=pred))
 
 ```
 
+
+#Predicting player overall using linear regression: full subset selection dataset
+```{r}
+library(caret)
+#using the full subset selection dataset and results to predict overall:
+#View(overall_full_subset)
+dim(overall_full_subset)
+#split data into testing and training sets:
+set.seed(1)
+training.samples <- overall_full_subset$overall %>% createDataPartition(p = 0.8, list = FALSE)
+train.data  <- overall_full_subset[training.samples, ]
+test.data <- overall_full_subset[-training.samples, ]
+dim(train.data)
+dim(test.data)
+
+```
+
+```{r}
+#fit a linear model on the train set:
+ovrfsm <- lm(overall~. ,data = na.omit(train.data))
+#summary of the linear model:
+summary(ovrfsm)
+#AIC and BIC of linear model:
+AIC(ovrfsm)
+BIC(ovrfsm)
+#AIC=58346.9 BIC=58497.24
+#predicted overall:
+ovrpred <- predict(ovrfsm, test.data)
+
+comparison_df <- data.frame(cbind(actual= test.data$overall, predicted = ovrpred))
+#View(comparison_df)
+
+#correlation accuracy:
+cor(comparison_df, use = "complete.obs")    #95.6%
+
+dim(comparison_df)
+dim(na.omit(comparison_df))
+
+comparison_df <- na.omit(comparison_df)
+
+#RMSE and MAE:
+# Function that returns Root Mean Squared Error
+rmse <- function(error)
+{
+    sqrt(mean(error^2))
+}
+ 
+# Function that returns Mean Absolute Error
+mae <- function(error)
+{
+    mean(abs(error))
+}
+
+#error in the model:
+error <- comparison_df$predicted - comparison_df$actual
+
+########VALIDATION SET APPROACH:
+#RMSE:
+rmse(error)   #2.032
+#MAE:
+mae(error)    #1.590
+
+
+#######LOOCV:
+# Define training control
+train.control <- trainControl(method = "LOOCV")
+# Train the model
+ovrfs_loocv_model <- train(overall ~., data = na.omit(train.data), method = "lm",
+               trControl = train.control)
+# Summarize the results
+print(ovrfs_loocv_model)
+summary(ovrfs_loocv_model)
+
+#predicted overall:
+ovrpred_loocv <- predict(ovrfs_loocv_model, test.data)
+
+comparison_df <- data.frame(cbind(actual= test.data$overall, predicted = ovrpred_loocv))
+#View(comparison_df)
+
+#correlation accuracy:
+cor(comparison_df, use = "complete.obs")    #46.7%
+
+#error using loocv method:
+error <- comparison_df$predicted - comparison_df$actual
+#RMSE:
+rmse(error)    #7.33
+#MSE:
+mae(error)     #3.56
+
+
+
+########k Fold Cross Validation:
+set.seed(2310) 
+train.control <- trainControl(method = "cv", number = 10)
+# Train the model
+ovrfs_kfcv_model <- train(overall ~., data = na.omit(train.data), method = "lm",
+               trControl = train.control)
+# Summarize the results
+print(ovrfs_kfcv_model)
+summary(ovrfs_kfcv_model)
+
+#predicted overall:
+ovrpred_kfcv <- predict(ovrfs_kfcv_model, test.data)
+
+comparison_df <- data.frame(cbind(actual= test.data$overall, predicted = ovrpred_kfcv))
+#View(comparison_df)
+
+#correlation accuracy:
+cor(comparison_df, use = "complete.obs")    #46.7%
+
+#error using loocv method:
+error <- comparison_df$predicted - comparison_df$actual
+#RMSE:
+rmse(error)    #7.33
+#MSE:
+mae(error)     #3.56
+
+
+```
+
+#Predicting player overall using stepwise forward selection model dataset:
+```{r}
+#View(overall_step_forward)
+dim(overall_step_forward)
+#split data into testing and training sets:
+set.seed(987)
+training.samples <- overall_step_forward$overall %>% createDataPartition(p = 0.8, list = FALSE)
+train.data  <- overall_step_forward[training.samples, ]
+test.data <- overall_step_forward[-training.samples, ]
+dim(train.data)
+dim(test.data)
+
+```
+
+```{r}
+#predicting overall using validation set approach, loocv and kfcv:
+#####Validaiton set apparoach:
+#fit a linear model on the train set:
+ovrstfsm <- lm(overall~. ,data = na.omit(train.data))
+#summary of the linear model:
+summary(ovrstfsm)
+#AIC and BIC of linear model:
+AIC(ovrstfsm)
+BIC(ovrstfsm)
+#AIC = 63303 and BIC = 63379.5
+
+#predicted overall:
+ovrpred <- predict(ovrstfsm, test.data)
+
+comparison_df <- data.frame(cbind(actual= test.data$overall, predicted = ovrpred))
+#View(comparison_df)
+
+#correlation accuracy:
+cor(comparison_df, use = "complete.obs")    #95.5%
+
+comparison_df <- na.omit(comparison_df)
+#error in the model:
+error <- comparison_df$predicted - comparison_df$actual
+#RMSE:
+rmse(error)   #2.055
+#MAE:
+mae(error)    #1.606
+
+
+#######LOOCV:
+# Define training control
+train.control <- trainControl(method = "LOOCV")
+# Train the model
+ovrstfs_loocv_model <- train(overall ~., data = na.omit(train.data), method = "lm",
+               trControl = train.control)
+# Summarize the results
+print(ovrstfs_loocv_model)
+summary(ovrstfs_loocv_model)
+
+#predicted overall:
+ovrpred_loocv <- predict(ovrstfs_loocv_model, test.data)
+
+comparison_df <- data.frame(cbind(actual= test.data$overall, predicted = ovrpred_loocv))
+#View(comparison_df)
+
+#correlation accuracy:
+cor(comparison_df, use = "complete.obs")    #95.5%
+
+#error using loocv method:
+error <- comparison_df$predicted - comparison_df$actual
+#RMSE:
+rmse(error)    #2.05
+#MSE:
+mae(error)     #1.60
+
+
+########k Fold Cross Validation:
+set.seed(99) 
+train.control <- trainControl(method = "cv", number = 10)
+# Train the model
+ovrfs_kfcv_model <- train(overall ~., data = na.omit(train.data), method = "lm",
+               trControl = train.control)
+# Summarize the results
+print(ovrfs_kfcv_model)
+summary(ovrfs_kfcv_model)
+
+#predicted overall:
+ovrpred_kfcv <- predict(ovrfs_kfcv_model, test.data)
+
+comparison_df <- data.frame(cbind(actual= test.data$overall, predicted = ovrpred_kfcv))
+#View(comparison_df)
+
+#correlation accuracy:
+cor(comparison_df, use = "complete.obs")    #95.5%
+
+#error using loocv method:
+error <- comparison_df$predicted - comparison_df$actual
+#RMSE:
+rmse(error)    #2.05
+#MSE:
+mae(error)     #1.06
+
+```
+
+#Interpretation:
+```{r}
+
+#Linear model using the forward stepwise selection dataset gave better results than
+#the model using the full subset selection dataset since accuracy measures (cross validated) #RMSE and MAE for the former were smaller when compared to the latter.
+```
+
+#Lasso Regression for feature selection:
+```{r}
+library(glmnet)
+data("swiss")
+
+lasso_dataset <- f20_sans_gks %>% select(- short_name, -sofifa_id, -nationality, -club, -preferred_foot, 
+     -team_position, -team_jersey_number, -work_rate)
+
+#data types of columns:
+#str(lasso_dataset)
+#all integers
+
+#remove overall from model matrix:
+x_var <- model.matrix(overall~. , lasso_dataset)[,-4]
+y_var <- lasso_dataset$overall
+lambda_seq <- 10^seq(2, -2, by = -.1)
+
+# Splitting the data into test and train
+set.seed(86)
+train = sample(1:nrow(x_var), nrow(x_var)/5)
+x_test = (-train)
+y_test = y_var[-train]
+
+cv_output <- cv.glmnet(x_var[train,], y_var[train], 
+            alpha = 1, lambda = lambda_seq)
+
+# identifying best lamda
+best_lam <- cv_output$lambda.min
+best_lam
+#best lambda value is 0.0158..
+```
+
+```{r}
+#using minimum lambda value to build a lasso model again:
+lasso_best <- glmnet(x_var[train,], y_var[train], alpha = 1, lambda = best_lam)
+pred <- predict(lasso_best, s = best_lam, newx = x_var[-train,])
+
+#comparing actual values and predicted values:
+final <- data.frame(cbind(actual = y_var[-train], predicted = pred))
+
+#coefficients of the best lasso model:
+coef(lasso_best)
+#coefs of variables with s0 as . have been shrunk to 0.
+
+#error of the lasso model:
+error = final$X1 - final$actual
+#RMSE:
+rmse(error)   #1.37
+#MAE:
+mae(error)    #1.07
+
+
+#Of all the approaches, Lasso regression model gave the best accuracy measures on the 
+#test set.
+length(train)
+```
