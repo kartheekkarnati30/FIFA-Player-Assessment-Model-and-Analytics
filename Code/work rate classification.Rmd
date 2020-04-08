@@ -1,0 +1,355 @@
+---
+title: "fifa20 attack work rate 2 class"
+author: "Naga Santhosh Kartheek Karnati"
+date: "4/8/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(data.table)
+library(rio)
+library(modelr)
+library(purrr)
+library(caret)
+
+fifa20 <- fread('D:/NEU/Spring 2020/SML/Project/Datasets/players_20.csv')
+class(fifa20)
+#View(fifa20)
+#fifa20 as a tibble
+fifa20 <- as_tibble(fifa20)
+```
+
+```{r}
+updated_fifa20 <- fifa20 %>% select(-player_url, -long_name, -dob, -real_face, -player_tags, 
+                                    -loaned_from, -joined, -player_positions, -contract_valid_until,
+                                    -nation_position, -nation_jersey_number, -player_traits, -gk_diving,
+                                    -gk_handling, -gk_kicking, -gk_reflexes, -gk_speed, -gk_positioning,
+                                    -goalkeeping_diving, -goalkeeping_handling, -goalkeeping_kicking,
+                                    -goalkeeping_positioning, -goalkeeping_reflexes, 
+                                    -ls, -st, -rs, -lw, -lf, -cf, -rf, -rw, -lam, -cam, -ram, 
+                                    -lm, -lcm, -cm, -rcm, -rm, -lwb, -ldm, -cdm, -rdm, -rwb, 
+                                    -lb, -lcb, -cb, -rcb, -rb)
+
+
+clean_fifa20 <- na.omit(updated_fifa20)
+clean_fifa20
+
+```
+
+```{r}
+
+df <- clean_fifa20 %>% select(-sofifa_id, -short_name, -nationality, -club, -body_type, -team_jersey_number, -team_position, -preferred_foot)
+
+
+#split work rate into attack work rate and defense work rate:
+df <- separate(df, work_rate, into = c("attack_workrate","defence_workrate"),
+         sep = "/")
+df <- df%>% select(-defence_workrate)
+dim(df)
+
+#number of classes in attack_workrate:
+unique(df$attack_workrate)
+#3 classes: Medium, High and Low
+
+```
+
+```{r}
+df%>% count(attack_workrate)
+df1 <- df
+df2 <- df
+
+```
+
+#Classification:
+```{r}
+df1$attack_workrate[df1$attack_workrate == "Low"] <- "High"
+df1$attack_workrate[df1$attack_workrate == "Medium"] <- "Low"
+
+df1%>% count(attack_workrate)
+
+#split dataset into test and train sets:
+set.seed(1)
+training.samples <- df1$attack_workrate %>% createDataPartition(p = 0.75, list = FALSE)
+train.data  <- df1[training.samples, ]
+test.data <- df1[-training.samples, ]
+dim(train.data)
+dim(test.data)
+```
+
+#LDA model:
+```{r}
+library(caret)
+library(pROC)
+trCtrl <- trainControl(method = "cv", number = 5)
+lda_fit_wrate <- train(attack_workrate~., data=train.data, method="lda", 
+              trControl = trCtrl, metric = "Accuracy")
+
+
+lda_pred_wrate <- predict(lda_fit_wrate, test.data%>%select(-attack_workrate))
+lda_comparison <- data.frame(original = test.data$attack_workrate, pred = lda_pred_wrate)
+
+#accuarcy of cross validated LDA model:
+mean(lda_comparison$pred == test.data$attack_workrate)
+#69.7% accuracy
+
+#confusion matrix:
+confusionMatrix(as.factor(test.data$attack_workrate), lda_comparison$pred)
+
+lda_pred_wrate1 <- predict(lda_fit_wrate, test.data%>%select(-attack_workrate), probability=
+                             TRUE)
+###ROC curve:
+roc_lda = roc(as.factor(test.data$attack_workrate), factor(lda_pred_wrate, ordered = TRUE), 
+    plot = TRUE)
+plot(roc_lda, col="red", lwd=3, main="ROC curve LDA")
+auc(roc_lda)
+#Multi-class area under the curve: 0.796
+
+```
+
+#Random Forest model:
+```{r}
+library(randomForest)
+#convert attack_workrate to factor:
+train.data$attack_workrate <- as.factor(train.data$attack_workrate)
+rf_model <- randomForest(attack_workrate ~ ., data = train.data, importance = TRUE)
+rf_model
+
+# Predicting on test set
+pred_rf <- predict(rf_model, test.data, type = "class")
+# Checking classification accuracy
+mean(pred_rf == test.data$attack_workrate)   #70.68% accuracy
+#confusion matrix:
+confusionMatrix(as.factor(test.data$attack_workrate), pred_rf)
+#Better accuracy than LDA model 
+
+#Important variables:
+importance(rf_model)
+varImpPlot(rf_model)
+```
+
+#PCA
+```{r}
+#PCA train and test sets:
+pca_trainset <- train.data %>% select( -attack_workrate)
+pca_testset <- test.data
+str(pca_trainset)
+dim(pca_trainset)
+
+#PCA on the train set:
+pca <- prcomp( pca_trainset, scale = T )
+
+# variance
+pr_var <- ( pca$sdev )^2 
+
+# % of variance
+prop_varex <- pr_var / sum( pr_var )
+
+#plot of proportion of variance explained by components:
+plot( prop_varex, xlab = "Principal Component", 
+                  ylab = "Proportion of Variance Explained", type = "b" )
+
+
+#Scree plot, prop of cumulative variance explained by components:
+plot( cumsum( prop_varex ), xlab = "Principal Component", 
+                            ylab = "Cumulative Proportion of Variance Explained", type = "b" )
+
+#we see that about 95% of the variance explained is done by 34 of the 46 features.
+#Therefore we can model with these first 26 PCs.
+```
+
+#PCA Continuation
+```{r}
+# Creating a new dataset
+train = data.frame( class = train.data$attack_workrate, pca$x )
+t = as.data.frame( predict( pca, newdata = pca_testset ) )
+
+new_trainset = train[, 1:27]
+new_testset =  t[, 1:26]
+```
+
+#LDA model on the new dataset after PCA
+```{r}
+fit_wrate_pca_lda <- train(class~., data=new_trainset, method="lda", 
+              trControl = trCtrl, metric = "Accuracy")
+
+tt <- predict( fit_wrate_pca_lda, new_testset)
+
+#accuarcy of cross validated PCA-LDA model:
+mean(tt == pca_testset$attack_workrate)
+#69.73% accuracy
+#The accuracy didnt increase much even after performing PCA.
+#confusion matrix:
+confusionMatrix(as.factor(pca_testset$attack_workrate), tt)
+```
+
+#Random Forest:
+```{r}
+#convert attack_workrate to factor:
+new_trainset$class <- as.factor(new_trainset$class)
+rf_model_pca <- randomForest(class ~ ., data = new_trainset, importance = TRUE)
+rf_model_pca
+
+# Predicting on test set
+pred_rf_pca <- predict(rf_model_pca, new_testset, type = "class")
+# Checking classification accuracy
+mean(pred_rf_pca == pca_testset$attack_workrate)   #70.5% accuracy
+#confusion matrix:
+confusionMatrix(as.factor(pca_testset$attack_workrate), pred_rf_pca)
+#Better accuracy than LDA model 
+
+#Important variables:
+importance(rf_model_pca)
+varImpPlot(rf_model_pca)
+```
+
+#Dealing with class imbalance:
+```{r}
+# Set up control function for training
+
+ctrl <- trainControl(method = "repeatedcv",
+                     number = 10,
+                     repeats = 3,
+                     summaryFunction = twoClassSummary,
+                     classProbs = TRUE)
+
+# Build a standard classifier using a gradient boosted machine
+
+set.seed(5627)
+
+orig_fit <- train(attack_workrate ~ .,
+                  data = train.data,
+                  method = "lda",
+                  verbose = FALSE,
+                  metric = "ROC",
+                  trControl = ctrl)
+
+# Build custom AUC function to extract AUC
+# from the caret model object
+
+test_roc <- function(model, data) {
+  
+  roc(data$attack_workrate,
+      predict(model, data, type = "prob")[, "High"])
+
+}
+
+orig_fit %>%
+  test_roc(data = test.data) %>%
+  auc()
+```
+
+```{r}
+library(DMwR) #for smote
+#Upscaling, downscaling and SMOTE techniques:
+# Use the same seed to ensure same cross-validation splits
+
+ctrl$seeds <- orig_fit$control$seeds
+
+# Build down-sampled model
+
+ctrl$sampling <- "down"
+
+down_fit <- train(attack_workrate ~ .,
+                  data = train.data,
+                  method = "lda",
+                  verbose = FALSE,
+                  metric = "ROC",
+                  trControl = ctrl)
+
+# Build up-sampled model
+
+ctrl$sampling <- "up"
+
+up_fit <- train(attack_workrate ~ .,
+                data = train.data,
+                method = "lda",
+                verbose = FALSE,
+                metric = "ROC",
+                trControl = ctrl)
+
+# Build smote model
+
+ctrl$sampling <- "smote"
+
+smote_fit <- train(attack_workrate ~ .,
+                   data = train.data,
+                   method = "lda",
+                   verbose = FALSE,
+                   metric = "ROC",
+                   trControl = ctrl)
+
+```
+
+
+```{r}
+# Examine results for test set
+
+model_list <- list(original = orig_fit,
+                   down = down_fit,
+                   up = up_fit,
+                   SMOTE = smote_fit)
+
+model_list_roc <- model_list %>%
+  map(test_roc, data = test.data)
+
+model_list_roc %>%
+  map(auc)
+
+#smote method results are slightly better than the other 3 models.
+```
+
+```{r}
+results_list_roc <- list(NA)
+num_mod <- 1
+
+for(the_roc in model_list_roc){
+  
+  results_list_roc[[num_mod]] <- 
+    data_frame(tpr = the_roc$sensitivities,
+               fpr = 1 - the_roc$specificities,
+               model = names(model_list)[num_mod])
+  
+  num_mod <- num_mod + 1
+  
+}
+
+results_df_roc <- bind_rows(results_list_roc)
+
+# Plot ROC curve for all 4 models
+
+custom_col <- c("#000000", "#009E73", "#0072B2", "#D55E00")
+
+ggplot(aes(x = fpr,  y = tpr, group = model), data = results_df_roc) +
+  geom_line(aes(color = model), size = 1) +
+  scale_color_manual(values = custom_col) +
+  geom_abline(intercept = 0, slope = 1, color = "gray", size = 1) +
+  theme_bw(base_size = 18)
+```
+
+```{r}
+#predictions of the smote fit:
+pred_smote <- predict(smote_fit, test.data)
+
+#accuracy:
+mean(pred_smote == test.data$attack_workrate)
+
+#confusion matrix:
+confusionMatrix(pred_smote, as.factor(test.data$attack_workrate))
+```
